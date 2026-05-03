@@ -1,0 +1,8 @@
+{
+  "name": "Shinhye's English World",
+  "description": "A personalized English learning adventure for Shinhye, focusing on phonics, writing, and reading.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
