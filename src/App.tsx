@@ -18,7 +18,12 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 );
 
-const Home = ({ setView, avatarUrl, onResetAvatar }: { setView: (v: string) => void, avatarUrl: string, onResetAvatar?: () => void }) => {
+const Home = ({ setView, avatarUrl, onResetAvatar, adjustments }: { 
+  setView: (v: string) => void, 
+  avatarUrl: string, 
+  onResetAvatar?: () => void,
+  adjustments?: { scale: number; x: number; y: number }
+}) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-12 px-6 max-w-5xl mx-auto">
       <motion.div 
@@ -32,7 +37,10 @@ const Home = ({ setView, avatarUrl, onResetAvatar }: { setView: (v: string) => v
             <img 
               src={avatarUrl} 
               alt="Shinhye Avatar" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-300"
+              style={adjustments ? {
+                transform: `scale(${adjustments.scale}) translate(${adjustments.x}px, ${adjustments.y}px)`
+              } : undefined}
               referrerPolicy="no-referrer"
             />
           </div>
@@ -867,7 +875,16 @@ const Stories = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack, onUpload }: any) => {
+const AvatarCreator = ({ 
+  avatarConfig, 
+  setAvatarConfig, 
+  onSave, 
+  onBack, 
+  onUpload, 
+  customAvatar, 
+  adjustments, 
+  onAdjust 
+}: any) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const options = {
     hair: ["long", "bob", "curly", "pigtails", "shaved", "short"],
@@ -877,7 +894,7 @@ const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack, onUpload
     hairColor: ["2c1b18", "b58143", "d6b672", "e22c2c", "000000"]
   };
 
-  const currentUrl = `https://api.dicebear.com/7.x/lorelei/svg?seed=${avatarConfig.seed}&hair=${avatarConfig.hair}&eyes=${avatarConfig.eyes}&mouth=${avatarConfig.mouth}&backgroundColor=${avatarConfig.baseColor}&hairColor=${avatarConfig.hairColor}`;
+  const currentUrl = customAvatar || `https://api.dicebear.com/7.x/lorelei/svg?seed=${avatarConfig.seed}&hair=${avatarConfig.hair}&eyes=${avatarConfig.eyes}&mouth=${avatarConfig.mouth}&backgroundColor=${avatarConfig.baseColor}&hairColor=${avatarConfig.hairColor}`;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -901,15 +918,65 @@ const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack, onUpload
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center w-full">
         <div className="bg-white rounded-[40px] border-8 border-teal-100 p-10 shadow-2xl flex flex-col items-center">
           <div className="w-64 h-64 bg-teal-50 rounded-full border-8 border-white shadow-inner mb-6 flex items-center justify-center overflow-hidden">
-            <img src={currentUrl} alt="Avatar Preview" className="w-full h-full" referrerPolicy="no-referrer" />
+            <img 
+              src={currentUrl} 
+              alt="Avatar Preview" 
+              className="w-full h-full object-cover transition-transform duration-200" 
+              style={customAvatar ? {
+                transform: `scale(${adjustments.scale}) translate(${adjustments.x}px, ${adjustments.y}px)`
+              } : undefined}
+              referrerPolicy="no-referrer" 
+            />
           </div>
           
           <div className="w-full space-y-4">
+            {customAvatar && (
+              <div className="bg-pink-50 p-6 rounded-3xl border-4 border-pink-100 space-y-4">
+                <p className="text-center font-black text-pink-600 text-sm uppercase">Adjust your photo</p>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-black text-pink-400 uppercase">
+                      <span>Zoom</span>
+                      <span>{Math.round(adjustments.scale * 100)}%</span>
+                    </div>
+                    <input 
+                      type="range" min="0.5" max="3" step="0.05"
+                      value={adjustments.scale}
+                      onChange={(e) => onAdjust({ ...adjustments, scale: parseFloat(e.target.value) })}
+                      className="w-full accent-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-black text-pink-400 uppercase">
+                      <span>Left / Right</span>
+                    </div>
+                    <input 
+                      type="range" min="-100" max="100" step="1"
+                      value={adjustments.x}
+                      onChange={(e) => onAdjust({ ...adjustments, x: parseInt(e.target.value) })}
+                      className="w-full accent-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-black text-pink-400 uppercase">
+                      <span>Up / Down</span>
+                    </div>
+                    <input 
+                      type="range" min="-100" max="100" step="1"
+                      value={adjustments.y}
+                      onChange={(e) => onAdjust({ ...adjustments, y: parseInt(e.target.value) })}
+                      className="w-full accent-pink-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button 
               onClick={onSave}
               className="w-full py-4 bg-teal-500 text-white font-black text-2xl rounded-3xl shadow-[0_8px_0_0_#0d9488] hover:translate-y-1 transition-all active:shadow-none"
             >
-              USE THIS CARTOON! ❤️
+              {customAvatar ? "LOOKS PERFECT! ❤️" : "USE THIS CARTOON! ❤️"}
             </button>
 
             <div className="flex items-center gap-4">
@@ -1137,6 +1204,11 @@ const Diary = ({ onBack }: { onBack: () => void }) => {
 export default function App() {
   const [view, setView] = React.useState("home");
   const [customAvatar, setCustomAvatar] = React.useState(() => localStorage.getItem("shinhye_custom_avatar") || null);
+  const [avatarAdjustments, setAvatarAdjustments] = React.useState(() => {
+    const saved = localStorage.getItem("shinhye_avatar_adjustments");
+    return saved ? JSON.parse(saved) : { scale: 1, x: 0, y: 0 };
+  });
+
   const [avatarConfig, setAvatarConfig] = React.useState({
     hair: "long",
     eyes: "happy",
@@ -1151,8 +1223,17 @@ export default function App() {
   const handleAvatarUpload = (url: string) => {
     setCustomAvatar(url);
     localStorage.setItem("shinhye_custom_avatar", url);
-    speak("Your photo looks amazing!");
-    setView("home");
+    const initialAdjust = { scale: 1, x: 0, y: 0 };
+    setAvatarAdjustments(initialAdjust);
+    localStorage.setItem("shinhye_avatar_adjustments", JSON.stringify(initialAdjust));
+    speak("Your photo looks amazing! Now you can adjust it!");
+    // Stay in avatar view if you want, but user might want to see Home. 
+    // Usually better to stay so they can adjust.
+  };
+
+  const handleAdjustSave = (adjustments: { scale: number; x: number; y: number }) => {
+    setAvatarAdjustments(adjustments);
+    localStorage.setItem("shinhye_avatar_adjustments", JSON.stringify(adjustments));
   };
 
   return (
@@ -1162,9 +1243,13 @@ export default function App() {
           <Home 
             setView={setView} 
             avatarUrl={avatarUrl} 
+            adjustments={avatarAdjustments}
             onResetAvatar={customAvatar ? () => {
               setCustomAvatar(null);
               localStorage.removeItem("shinhye_custom_avatar");
+              const initialAdjust = { scale: 1, x: 0, y: 0 };
+              setAvatarAdjustments(initialAdjust);
+              localStorage.setItem("shinhye_avatar_adjustments", JSON.stringify(initialAdjust));
               speak("Cartoon Shinhye is back!");
             } : undefined}
           />
@@ -1180,9 +1265,10 @@ export default function App() {
             setAvatarConfig={setAvatarConfig} 
             onBack={() => setView("home")}
             onUpload={handleAvatarUpload}
+            customAvatar={customAvatar}
+            adjustments={avatarAdjustments}
+            onAdjust={handleAdjustSave}
             onSave={() => {
-              setCustomAvatar(null);
-              localStorage.removeItem("shinhye_custom_avatar");
               speak("You look beautiful!");
               setView("home");
             }} 
