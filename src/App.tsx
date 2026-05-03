@@ -18,7 +18,7 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 );
 
-const Home = ({ setView, avatarUrl }: { setView: (v: string) => void, avatarUrl: string }) => {
+const Home = ({ setView, avatarUrl, onResetAvatar }: { setView: (v: string) => void, avatarUrl: string, onResetAvatar?: () => void }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-12 px-6 max-w-5xl mx-auto">
       <motion.div 
@@ -27,7 +27,7 @@ const Home = ({ setView, avatarUrl }: { setView: (v: string) => void, avatarUrl:
         className="w-full flex flex-col items-center"
       >
         {/* Avatar Section */}
-        <div className="relative mb-12">
+        <div className="relative mb-12 group">
           <div className="w-64 h-64 bg-teal-50 rounded-full flex items-center justify-center p-2 relative shadow-2xl overflow-hidden border-8 border-white">
             <img 
               src={avatarUrl} 
@@ -36,6 +36,15 @@ const Home = ({ setView, avatarUrl }: { setView: (v: string) => void, avatarUrl:
               referrerPolicy="no-referrer"
             />
           </div>
+          {onResetAvatar && (
+            <button 
+              onClick={onResetAvatar}
+              className="absolute -top-2 -left-2 bg-pink-100 text-pink-600 p-2 rounded-full border-2 border-white shadow-md hover:bg-pink-200 transition-all text-xs font-black uppercase opacity-0 group-hover:opacity-100"
+              title="Reset to Cartoon"
+            >
+              Reset
+            </button>
+          )}
           <motion.div 
             animate={{ rotate: [0, 5, -5, 0], scale: [1, 1.05, 1] }} 
             transition={{ repeat: Infinity, duration: 4 }}
@@ -159,6 +168,10 @@ const Phonics = ({ onBack }: { onBack: () => void }) => {
 const Writing = ({ onBack }: { onBack: () => void }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
+  const [brushSize, setBrushSize] = React.useState(18);
+  const [brushColor, setBrushColor] = React.useState("#2dd4bf");
+  const [pixelCount, setPixelCount] = React.useState(0);
+  const [lastPos, setLastPos] = React.useState({ x: 0, y: 0 });
   const [mode, setMode] = React.useState<"alphabet" | "words">("alphabet");
   const [currentLetter, setCurrentLetter] = React.useState(ALPHABET_DATA[0]);
   const [currentCategory, setCurrentCategory] = React.useState<keyof typeof READING_CATEGORIES>("ANIMALS");
@@ -173,15 +186,21 @@ const Writing = ({ onBack }: { onBack: () => void }) => {
     ? (isUppercase ? currentLetter.letter : currentLetter.letter.toLowerCase())
     : (isUppercase ? activeWord.word : activeWord.word.toLowerCase());
 
+  const [currentCompliment, setCurrentCompliment] = React.useState("Excellent!");
+  const compliments = ["Excellent!", "You're great!", "Not bad!", "You are a star!", "You are genius!"];
+  const reminders = ["Try again!", "Practice more!", "Try one more time!"];
+
   const playSuccess = () => {
-    speak("Great job, Shinhye!", true);
+    const randomCompliment = compliments[Math.floor(Math.random() * compliments.length)];
+    setCurrentCompliment(randomCompliment);
     setShowSuccess(true);
     confetti({
       particleCount: 150,
       spread: 70,
       origin: { y: 0.6 },
-      colors: ["#2dd4bf", "#f97316", "#10b981", "#ec4899"]
+      colors: ["#2dd4bf", "#ec4899"]
     });
+    speak(randomCompliment);
     setTimeout(() => setShowSuccess(false), 2000);
   };
 
@@ -191,6 +210,7 @@ const Writing = ({ onBack }: { onBack: () => void }) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setPixelCount(0);
     
     // Guide text - scale factor for longer words
     const fontSize = mode === "alphabet" ? 240 : Math.max(60, 240 / (activeChar.length * 0.6));
@@ -206,39 +226,61 @@ const Writing = ({ onBack }: { onBack: () => void }) => {
   }, [currentLetter, isUppercase, mode, activeChar]);
 
   const startDrawing = (e: any) => {
+    e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
     const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
+    
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.strokeStyle = "#2dd4bf";
-    ctx.lineWidth = 18;
-    ctx.lineCap = "round";
+    setLastPos({ x, y });
     setIsDrawing(true);
   };
 
   const draw = (e: any) => {
     if (!isDrawing) return;
+    e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
     const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
+
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(lastPos.x, lastPos.y);
     ctx.lineTo(x, y);
     ctx.stroke();
+    
+    setLastPos({ x, y });
+    setPixelCount(prev => prev + 1);
   };
 
   const stopDrawing = () => setIsDrawing(false);
 
   const handleDone = () => {
+    // Basic heuristic: check if Shinhye has drawn enough pixels relative to the text length
+    // Increased threshold to ensure better "conciseness" and careful tracing
+    const minPixels = mode === "alphabet" ? 120 : activeChar.length * 60;
+    
+    if (pixelCount < minPixels) {
+      const randomReminder = reminders[Math.floor(Math.random() * reminders.length)];
+      speak(`${randomReminder} Practice more, Shinhye!`);
+      return;
+    }
+
     playSuccess();
     setTimeout(() => {
       if (mode === "alphabet") {
@@ -275,7 +317,7 @@ const Writing = ({ onBack }: { onBack: () => void }) => {
               >
                 <div className="text-center">
                   <div className="text-7xl mb-2">🌟</div>
-                  <div className="text-4xl font-black text-pink-500 uppercase">Excellent!</div>
+                  <div className="text-4xl font-black text-pink-500 uppercase">{currentCompliment}</div>
                 </div>
               </motion.div>
             )}
@@ -307,6 +349,39 @@ const Writing = ({ onBack }: { onBack: () => void }) => {
             >
               small
             </button>
+          </div>
+
+          {/* Brush Controls */}
+          <div className="flex gap-4 mb-6 bg-white p-3 rounded-2xl border-4 border-pink-50 w-full items-center justify-center">
+            <div className="flex gap-2">
+              {["#ec4899", "#2dd4bf", "#8b5cf6", "#f97316"].map(c => (
+                <button
+                  key={c}
+                  onClick={() => setBrushColor(c)}
+                  className={`w-10 h-10 rounded-full border-4 transition-all ${brushColor === c ? "border-teal-400 scale-110 shadow-md" : "border-white"}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            <div className="w-[1px] h-8 bg-pink-100" />
+            <div className="flex gap-4">
+              {[8, 18, 32].map(size => (
+                <button
+                  key={size}
+                  onClick={() => setBrushSize(size)}
+                  className={`flex items-center justify-center rounded-xl transition-all ${brushSize === size ? "bg-pink-500 text-white" : "bg-pink-50 text-pink-300"}`}
+                  style={{ width: "32px", height: "32px" }}
+                >
+                  <div 
+                    className="bg-current rounded-full" 
+                    style={{ 
+                      width: size === 8 ? "6px" : size === 18 ? "12px" : "18px", 
+                      height: size === 8 ? "6px" : size === 18 ? "12px" : "18px" 
+                    }} 
+                  />
+                </button>
+              ))}
+            </div>
           </div>
 
           <canvas
@@ -528,6 +603,8 @@ const Reading = ({ onBack }: { onBack: () => void }) => {
                 onClick={() => {
                   speak(currentWords[currentIndex].word);
                   if (!solved) {
+                    const compliments = ["Excellent!", "You're great!", "Not bad!", "You are a star!", "You are genius!"];
+                    const randomCompliment = compliments[Math.floor(Math.random() * compliments.length)];
                     setSolved(true);
                     confetti({
                       particleCount: 150,
@@ -535,6 +612,7 @@ const Reading = ({ onBack }: { onBack: () => void }) => {
                       origin: { y: 0.6 },
                       colors: ["#2dd4bf", "#ec4899"]
                     });
+                    setTimeout(() => speak(`${randomCompliment} Good job reading!`), 1000);
                   }
                 }}
                 className="w-full py-5 bg-teal-500 text-white font-black text-2xl rounded-3xl shadow-[0_8px_0_0_#0d9488] hover:translate-y-1 transition-all active:shadow-none uppercase tracking-tighter flex items-center justify-center gap-3"
@@ -610,6 +688,9 @@ const Stories = ({ onBack }: { onBack: () => void }) => {
   const story = filteredStories[currentStoryIdx] || filteredStories[0];
 
   const handleAnswer = (option: string) => {
+    const compliments = ["Excellent!", "You're great!", "Not bad!", "You are a star!", "You are genius!"];
+    const randomCompliment = compliments[Math.floor(Math.random() * compliments.length)];
+    
     if (option === story.quiz.answer) {
       setQuizResult(true);
       confetti({
@@ -618,7 +699,7 @@ const Stories = ({ onBack }: { onBack: () => void }) => {
         origin: { y: 0.6 },
         colors: ["#2dd4bf", "#ec4899"]
       });
-      speak("Excellent! You are right!");
+      speak(`${randomCompliment} You are right!`);
     } else {
       setQuizResult(false);
       speak("Try again, Shinhye!");
@@ -786,7 +867,8 @@ const Stories = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack }: any) => {
+const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack, onUpload }: any) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const options = {
     hair: ["long", "bob", "curly", "pigtails", "shaved", "short"],
     eyes: ["happy", "surprised", "wink", "shaded", "round"],
@@ -796,6 +878,17 @@ const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack }: any) =
   };
 
   const currentUrl = `https://api.dicebear.com/7.x/lorelei/svg?seed=${avatarConfig.seed}&hair=${avatarConfig.hair}&eyes=${avatarConfig.eyes}&mouth=${avatarConfig.mouth}&backgroundColor=${avatarConfig.baseColor}&hairColor=${avatarConfig.hairColor}`;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onUpload(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="pt-32 pb-12 px-6 flex flex-col items-center max-w-4xl mx-auto relative">
@@ -810,12 +903,35 @@ const AvatarCreator = ({ avatarConfig, setAvatarConfig, onSave, onBack }: any) =
           <div className="w-64 h-64 bg-teal-50 rounded-full border-8 border-white shadow-inner mb-6 flex items-center justify-center overflow-hidden">
             <img src={currentUrl} alt="Avatar Preview" className="w-full h-full" referrerPolicy="no-referrer" />
           </div>
-          <button 
-            onClick={onSave}
-            className="w-full py-4 bg-teal-500 text-white font-black text-2xl rounded-3xl shadow-[0_8px_0_0_#0d9488] hover:translate-y-1 transition-all active:shadow-none"
-          >
-            I LOVE IT! ❤️
-          </button>
+          
+          <div className="w-full space-y-4">
+            <button 
+              onClick={onSave}
+              className="w-full py-4 bg-teal-500 text-white font-black text-2xl rounded-3xl shadow-[0_8px_0_0_#0d9488] hover:translate-y-1 transition-all active:shadow-none"
+            >
+              USE THIS CARTOON! ❤️
+            </button>
+
+            <div className="flex items-center gap-4">
+              <div className="h-[2px] flex-1 bg-teal-100" />
+              <span className="text-teal-300 font-black text-xs uppercase">OR</span>
+              <div className="h-[2px] flex-1 bg-teal-100" />
+            </div>
+
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-4 bg-pink-400 text-white font-black text-xl rounded-3xl shadow-[0_8px_0_0_#db2777] hover:translate-y-1 transition-all active:shadow-none flex items-center justify-center gap-2"
+            >
+              📷 UPLOAD MY PHOTO
+            </button>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -986,7 +1102,7 @@ const Diary = ({ onBack }: { onBack: () => void }) => {
               }`}
             >
               {isListening ? <Square className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-              {isListening ? "Listening..." : "Speak Now!"}
+              {isListening ? "STOP RECORDING" : "Speak Now!"}
             </button>
           </div>
 
@@ -1020,6 +1136,7 @@ const Diary = ({ onBack }: { onBack: () => void }) => {
 
 export default function App() {
   const [view, setView] = React.useState("home");
+  const [customAvatar, setCustomAvatar] = React.useState(() => localStorage.getItem("shinhye_custom_avatar") || null);
   const [avatarConfig, setAvatarConfig] = React.useState({
     hair: "long",
     eyes: "happy",
@@ -1029,12 +1146,29 @@ export default function App() {
     seed: "Shinhye"
   });
 
-  const avatarUrl = `https://api.dicebear.com/7.x/lorelei/svg?seed=${avatarConfig.seed}&hair=${avatarConfig.hair}&eyes=${avatarConfig.eyes}&mouth=${avatarConfig.mouth}&backgroundColor=${avatarConfig.baseColor}&hairColor=${avatarConfig.hairColor}`;
+  const avatarUrl = customAvatar || `https://api.dicebear.com/7.x/lorelei/svg?seed=${avatarConfig.seed}&hair=${avatarConfig.hair}&eyes=${avatarConfig.eyes}&mouth=${avatarConfig.mouth}&backgroundColor=${avatarConfig.baseColor}&hairColor=${avatarConfig.hairColor}`;
+
+  const handleAvatarUpload = (url: string) => {
+    setCustomAvatar(url);
+    localStorage.setItem("shinhye_custom_avatar", url);
+    speak("Your photo looks amazing!");
+    setView("home");
+  };
 
   return (
     <div className="min-h-screen bg-transparent font-sans selection:bg-teal-200">
       <main>
-        {view === "home" && <Home setView={setView} avatarUrl={avatarUrl} />}
+        {view === "home" && (
+          <Home 
+            setView={setView} 
+            avatarUrl={avatarUrl} 
+            onResetAvatar={customAvatar ? () => {
+              setCustomAvatar(null);
+              localStorage.removeItem("shinhye_custom_avatar");
+              speak("Cartoon Shinhye is back!");
+            } : undefined}
+          />
+        )}
         {view === "phonics" && <Phonics onBack={() => setView("home")} />}
         {view === "writing" && <Writing onBack={() => setView("home")} />}
         {view === "reading" && <Reading onBack={() => setView("home")} />}
@@ -1045,7 +1179,10 @@ export default function App() {
             avatarConfig={avatarConfig} 
             setAvatarConfig={setAvatarConfig} 
             onBack={() => setView("home")}
+            onUpload={handleAvatarUpload}
             onSave={() => {
+              setCustomAvatar(null);
+              localStorage.removeItem("shinhye_custom_avatar");
               speak("You look beautiful!");
               setView("home");
             }} 
