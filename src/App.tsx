@@ -1276,8 +1276,9 @@ export default function App() {
         )}
       </main>
 
-      <footer className="py-8 text-center text-gray-400 text-xs mt-auto">
-        <p>© 2026 Shinhye's English World • Made with ❤️ for Shinhye</p>
+      <footer className="py-8 text-center space-y-2 mt-auto">
+        <p className="text-gray-400 text-xs text-center">Shinhye's English World • Made with ❤️ for Shinhye</p>
+        <p className="text-pink-300 text-sm font-medium text-center">APP Developed by: Jullie Jeong, 2026</p>
       </footer>
     </div>
   );
